@@ -23,4 +23,9 @@ public interface EmployeeMapper {
     void insert(Employee employee);
     //分页查询员工
     Page<Employee> pageQuery(EmployeePageQueryDTO employeePageQueryDTO);
+    //启用禁用员工账号
+    void update(Employee employee);
+
+    @Select("select * from employee where id = #{id}")
+    Employee getById(Long id);
 }
