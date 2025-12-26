@@ -78,7 +78,7 @@ public class EmployeeController {
     public Result save(@RequestBody EmployeeDTO  employeeDTO){
     log.info("新增员工：{}",employeeDTO);
         System.out.println("当前Employee_Controller线程ID："+Thread.currentThread().getId());
-    employeeService.save(employeeDTO);
+        employeeService.save(employeeDTO);
         return Result.success();
     }
     //员工分页查询
@@ -117,4 +117,6 @@ public class EmployeeController {
        employeeService.update(employeeDTO);
         return Result.success();
     }
+
+
 }
