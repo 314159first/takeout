@@ -1,5 +1,34 @@
 # 苍穹外卖项目代码说明文档
 
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.3-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![MyBatis](https://img.shields.io/badge/MyBatis-2.2.0-red.svg)](https://mybatis.org/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+
+---
+
+## 📑 目录
+
+- [项目概述](#-项目概述)
+- [项目整体架构](#️-项目整体架构)
+- [模块详细说明](#-模块详细说明)
+  - [sky-common（公共模块）](#️⃣-sky-common公共模块)
+  - [sky-pojo（实体类模块）](#️⃣-sky-pojo实体类模块)
+  - [sky-server（服务模块）](#️⃣-sky-server服务模块)
+- [核心技术组件说明](#-核心技术组件说明)
+- [数据库设计](#-数据库设计推测)
+- [关键配置说明](#-关键配置说明)
+- [主要技术栈版本](#-主要技术栈版本)
+- [项目功能模块](#-项目功能模块)
+- [项目启动流程](#-项目启动流程)
+- [代码规范与约定](#-代码规范与约定)
+- [常见问题说明](#-常见问题说明)
+- [开发调试指南](#️-开发调试指南)
+- [学习建议](#-学习建议)
+- [项目亮点](#-项目亮点)
+- [总结](#-总结)
+
+---
+
 ## 📋 项目概述
 
 **项目名称**：sky-take-out（苍穹外卖）  
@@ -298,12 +327,44 @@ public interface EmployeeMapper {
 
 **相关类**：
 - `JwtUtil`：生成和解析JWT
-- `JwtTokenAdminInterceptor`：拦截器校验JWT
+- `JwtTokenAdminInterceptor`：拦截器校验JWT（管理端）
+- `JwtTokenUserInterceptor`：拦截器校验JWT（用户端）
 - `BaseContext`：存储当前请求用户ID
+
+**配置说明**：
+- 管理端令牌名称：`token`
+- 用户端令牌名称：`authentication`
+- JWT过期时间：7200000毫秒（2小时）
 
 ---
 
-### 2. 全局异常处理
+### 2. AOP 自动填充功能
+
+**功能说明**：使用 AOP 切面自动填充公共字段（创建时间、更新时间、创建人、更新人）。
+
+**核心类**：
+- `@Autofill` 注解：标识需要自动填充的方法
+- `AutoFillAspect`：切面类，拦截带有 @Autofill 注解的方法
+
+**使用示例**：
+```java
+@Mapper
+public interface EmployeeMapper {
+    @AutoFill(OperationType.INSERT)
+    void insert(Employee employee);
+    
+    @AutoFill(OperationType.UPDATE)
+    void update(Employee employee);
+}
+```
+
+**填充字段**：
+- INSERT 操作：自动设置 createTime、updateTime、createUser、updateUser
+- UPDATE 操作：自动设置 updateTime、updateUser
+
+---
+
+### 4. 全局异常处理
 
 **GlobalExceptionHandler.java**
 ```java
@@ -327,7 +388,7 @@ public class GlobalExceptionHandler {
 
 ---
 
-### 3. 统一返回结果封装
+### 5. 统一返回结果封装
 
 所有接口返回 `Result<T>` 对象：
 
@@ -353,7 +414,7 @@ public class GlobalExceptionHandler {
 
 ---
 
-### 4. MyBatis 配置
+### 6. MyBatis 配置
 
 **application.yml**
 ```yaml
@@ -364,9 +425,34 @@ mybatis:
     map-underscore-to-camel-case: true      # 开启驼峰命名转换
 ```
 
+**日志配置**：
+```yaml
+logging:
+  level:
+    com.sky.mapper: debug     # Mapper层打印SQL语句
+    com.sky.service: info     # Service层日志级别
+    com.sky.controller: info  # Controller层日志级别
+```
+
 ---
 
-### 5. 拦截器配置
+### 7. Redis 缓存配置
+
+**作用**：用于缓存菜品数据、店铺营业状态等高频访问数据，提高系统性能。
+
+**配置**：
+```yaml
+spring:
+  redis:
+    host: ${sky.redis.host}
+    port: ${sky.redis.port}
+    password: ${sky.redis.password}
+    database: ${sky.redis.database}
+```
+
+---
+
+### 8. 拦截器配置
 
 **WebMvcConfiguration.java**
 ```java
@@ -383,6 +469,53 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
     }
 }
 ```
+
+---
+
+### 8. 拦截器配置
+
+**WebMvcConfiguration.java**
+```java
+@Configuration
+public class WebMvcConfiguration extends WebMvcConfigurationSupport {
+    
+    @Autowired
+    private JwtTokenAdminInterceptor jwtTokenAdminInterceptor;
+    
+    @Autowired
+    private JwtTokenUserInterceptor jwtTokenUserInterceptor;
+    
+    protected void addInterceptors(InterceptorRegistry registry) {
+        // 管理端拦截器
+        registry.addInterceptor(jwtTokenAdminInterceptor)
+                .addPathPatterns("/admin/**")          // 拦截所有管理端接口
+                .excludePathPatterns("/admin/employee/login");  // 排除登录接口
+        
+        // 用户端拦截器
+        registry.addInterceptor(jwtTokenUserInterceptor)
+                .addPathPatterns("/user/**")           // 拦截所有用户端接口
+                .excludePathPatterns("/user/user/login", "/user/shop/status");  // 排除登录和店铺状态接口
+    }
+}
+```
+
+---
+
+### 9. 事务管理
+
+项目启用了声明式事务管理：
+
+```java
+@SpringBootApplication
+@EnableTransactionManagement //开启注解方式的事务管理
+public class SkyApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(SkyApplication.class, args);
+    }
+}
+```
+
+在需要事务的 Service 方法上添加 `@Transactional` 注解即可。
 
 ---
 
@@ -420,9 +553,61 @@ spring:
   datasource:
     druid:
       driver-class-name: com.mysql.cj.jdbc.Driver
-      url: jdbc:mysql://localhost:3306/sky_take_out
+      url: jdbc:mysql://localhost:3306/sky_take_out?serverTimezone=Asia/Shanghai
       username: root
       password: 123456
+  redis:
+    host: localhost
+    port: 6379
+    password: 
+    database: 0
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.sky.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+logging:
+  level:
+    com.sky.mapper: debug
+
+sky:
+  jwt:
+    admin-secret-key: itcast
+    admin-ttl: 7200000
+    admin-token-name: token
+    user-secret-key: itheima
+    user-ttl: 7200000
+    user-token-name: authentication
+```
+
+---
+
+### application-dev.yml（开发环境配置）
+
+```yaml
+sky:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    host: localhost
+    port: 3306
+    database: sky_take_out
+    username: root
+    password: 123456
+  redis:
+    host: localhost
+    port: 6379
+    password: 
+    database: 0
+  alioss:
+    endpoint: oss-cn-hangzhou.aliyuncs.com
+    access-key-id: your-access-key-id
+    access-key-secret: your-access-key-secret
+    bucket-name: your-bucket-name
+  wechat:
+    appid: your-wechat-appid
+    appsecret: your-wechat-appsecret
 ```
 
 ---
@@ -441,37 +626,154 @@ spring:
 | Fastjson | 1.2.76 | JSON处理 |
 | AliOSS | 3.10.2 | 文件上传 |
 | WeChat Pay | 0.4.8 | 微信支付 |
+| POI | 3.16 | Excel报表导出 |
+| AspectJ | 1.9.4 | AOP切面编程 |
 
 ---
 
-## 🎯 项目功能模块（推测）
+## 🎯 项目功能模块
 
-根据代码结构推测系统功能：
+根据代码结构，系统功能包括：
 
 ### 管理端（/admin）
-- 员工管理：登录、新增、修改、分页查询
-- 分类管理：菜品分类、套餐分类
-- 菜品管理：菜品CRUD、起售停售、口味管理
-- 套餐管理：套餐CRUD、套餐菜品关联
-- 订单管理：订单查询、接单、派送、完成、取消
-- 数据统计：营业数据、订单统计、销售排行
 
-### 用户端（推测）
-- 用户登录：微信授权登录
-- 菜品浏览：分类浏览、搜索
-- 购物车：添加、删除、清空
-- 地址管理：收货地址CRUD
-- 订单管理：下单、支付、查询、取消
+#### 1. 员工管理模块
+- **控制器**：`EmployeeController`
+- **功能**：
+  - 员工登录
+  - 新增员工
+  - 编辑员工信息
+  - 分页查询员工
+  - 启用/禁用员工账号
+  - 修改密码
+
+#### 2. 分类管理模块
+- **控制器**：`CategoryController`
+- **功能**：
+  - 新增分类（菜品分类/套餐分类）
+  - 修改分类
+  - 删除分类
+  - 启用/禁用分类
+  - 分页查询分类
+  - 根据类型查询分类
+
+#### 3. 菜品管理模块
+- **控制器**：`DishController`
+- **功能**：
+  - 新增菜品（含口味配置）
+  - 修改菜品
+  - 删除菜品（批量删除）
+  - 起售/停售菜品
+  - 分页查询菜品
+  - 根据分类ID查询菜品
+
+#### 4. 套餐管理模块
+- **控制器**：`SetMealController`
+- **功能**：
+  - 新增套餐（关联菜品）
+  - 修改套餐
+  - 删除套餐（批量删除）
+  - 起售/停售套餐
+  - 分页查询套餐
+
+#### 5. 公共模块
+- **控制器**：`CommonController`
+- **功能**：
+  - 文件上传（阿里云OSS）
+
+#### 6. 店铺管理
+- **控制器**：`ShopController`
+- **功能**：
+  - 设置店铺营业状态
+  - 查询店铺营业状态
+
+### 用户端（/user）
+
+#### 1. 用户管理模块
+- **控制器**：`UserController`
+- **功能**：
+  - 微信登录
+  - 用户信息查询
+
+#### 2. 菜品浏览模块
+- **控制器**：`DishController`
+- **功能**：
+  - 根据分类ID查询菜品列表
+
+#### 3. 套餐浏览模块
+- **控制器**：`SetmealController`
+- **功能**：
+  - 根据分类ID查询套餐列表
+  - 根据套餐ID查询包含的菜品
+
+#### 4. 分类浏览模块
+- **控制器**：`CategoryController`
+- **功能**：
+  - 查询分类列表
+
+#### 5. 店铺状态查询
+- **控制器**：`ShopController`
+- **功能**：
+  - 查询店铺营业状态
 
 ---
 
 ## 🚀 项目启动流程
 
-1. **数据库准备**：创建 `sky_take_out` 数据库并导入SQL脚本
-2. **配置修改**：修改 `application-dev.yml` 中的数据库连接信息
-3. **Maven构建**：`mvn clean install`
-4. **启动项目**：运行 `SkyApplication.main()`
-5. **访问接口文档**：`http://localhost:8080/doc.html`（Knife4j）
+### 环境要求
+- **JDK**：1.8 或以上
+- **Maven**：3.6 或以上
+- **MySQL**：5.7 或以上
+- **Redis**：任意版本
+
+### 启动步骤
+
+1. **数据库准备**
+   ```bash
+   # 创建数据库
+   CREATE DATABASE sky_take_out CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   
+   # 导入SQL脚本（如果有）
+   # 执行项目提供的SQL初始化脚本
+   ```
+
+2. **Redis 准备**
+   ```bash
+   # 启动 Redis 服务
+   redis-server
+   ```
+
+3. **配置修改**
+   - 修改 `sky-server/src/main/resources/application-dev.yml`
+   - 配置数据库连接信息
+   - 配置 Redis 连接信息
+   - （可选）配置阿里云 OSS 信息
+   - （可选）配置微信支付信息
+
+4. **Maven 构建**
+   ```bash
+   # 在项目根目录执行
+   mvn clean install
+   ```
+
+5. **启动项目**
+   ```bash
+   # 方式1：使用 Maven 启动
+   cd sky-server
+   mvn spring-boot:run
+   
+   # 方式2：使用 IDE 启动
+   # 运行 com.sky.SkyApplication 的 main 方法
+   ```
+
+6. **访问接口文档**
+   - Knife4j 接口文档：`http://localhost:8080/doc.html`
+   - 管理端接口：`http://localhost:8080/admin/**`
+   - 用户端接口：`http://localhost:8080/user/**`
+
+7. **默认管理员账号**（如果有）
+   - 用户名：`admin`
+   - 密码：`123456`
 
 ---
 
@@ -521,6 +823,118 @@ spring:
 ### Q4: Knife4j 是什么？
 Swagger 的增强工具，自动生成接口文档，访问 `/doc.html` 即可查看和测试接口。
 
+### Q5: @AutoFill 注解的作用？
+用于自动填充公共字段（创建时间、更新时间、创建人、更新人），避免在每个 Service 方法中手动设置这些字段。
+
+### Q6: 如何调试接口？
+1. 启动项目后访问 `http://localhost:8080/doc.html`
+2. 在 Knife4j 界面中找到要测试的接口
+3. 填写请求参数
+4. 点击"发送"按钮即可看到响应结果
+
+### Q7: 如何查看 SQL 日志？
+在 `application.yml` 中已配置 `com.sky.mapper: debug`，启动项目后控制台会打印执行的 SQL 语句。
+
+### Q8: Redis 的作用是什么？
+用于缓存高频访问数据（如菜品信息、店铺营业状态），减少数据库查询压力，提升系统性能。
+
+---
+
+## 🛠️ 开发调试指南
+
+### 本地开发环境搭建
+
+1. **安装必要工具**
+   - JDK 1.8+
+   - Maven 3.6+
+   - MySQL 5.7+
+   - Redis
+   - IntelliJ IDEA（推荐）或 Eclipse
+
+2. **导入项目**
+   ```bash
+   # 克隆项目
+   git clone <repository-url>
+   
+   # 使用 IDEA 打开项目
+   # File -> Open -> 选择项目根目录的 pom.xml
+   ```
+
+3. **配置数据库**
+   - 创建数据库 `sky_take_out`
+   - 执行初始化 SQL 脚本
+   - 修改 `application-dev.yml` 中的数据库连接信息
+
+4. **启动 Redis**
+   ```bash
+   redis-server
+   ```
+
+5. **运行项目**
+   - 找到 `SkyApplication` 类
+   - 右键选择 "Run 'SkyApplication'"
+
+### 调试技巧
+
+#### 1. 使用断点调试
+```
+Controller 层 → 观察请求参数是否正确
+    ↓
+Service 层 → 观察业务逻辑执行过程
+    ↓
+Mapper 层 → 观察 SQL 执行结果
+```
+
+#### 2. 查看日志
+```bash
+# 在 application.yml 中配置日志级别
+logging:
+  level:
+    com.sky.mapper: debug    # 查看 SQL
+    com.sky.service: info    # 查看业务日志
+    com.sky.controller: info # 查看请求日志
+```
+
+#### 3. 使用 Knife4j 测试接口
+- 访问 `http://localhost:8080/doc.html`
+- 选择接口 → 填写参数 → 发送请求 → 查看响应
+
+#### 4. 查看数据库变化
+```sql
+-- 查看最新插入的数据
+SELECT * FROM employee ORDER BY create_time DESC LIMIT 10;
+
+-- 查看菜品数据
+SELECT * FROM dish WHERE status = 1;
+```
+
+### 常见开发问题
+
+#### 问题1：端口被占用
+```bash
+# 查找占用 8080 端口的进程
+lsof -i:8080  # Mac/Linux
+netstat -ano | findstr 8080  # Windows
+
+# 杀掉进程或修改端口
+# 在 application.yml 中修改 server.port
+```
+
+#### 问题2：数据库连接失败
+- 检查 MySQL 是否启动
+- 检查用户名密码是否正确
+- 检查数据库名称是否存在
+- 检查 MySQL 时区配置：`serverTimezone=Asia/Shanghai`
+
+#### 问题3：Redis 连接失败
+- 检查 Redis 是否启动：`redis-cli ping`
+- 检查 Redis 配置：host、port、password
+
+#### 问题4：JWT 验证失败
+- 检查 token 是否过期
+- 检查请求头中的 token 参数名是否正确（管理端：token，用户端：authentication）
+- 检查 secret-key 是否正确
+
 ---
 
 ## 📖 学习建议
@@ -529,14 +943,65 @@ Swagger 的增强工具，自动生成接口文档，访问 `/doc.html` 即可�
 1. 先看 **pom.xml** 了解项目依赖和模块关系
 2. 再看 **实体类（Entity）** 理解数据库表结构
 3. 然后看 **DTO/VO** 理解前后端数据传输
-4. 接着看 **Service层** 理解业务逻辑
-5. 最后看 **Controller层** 理解接口定义
+4. 接着看 **Mapper 接口和 XML** 理解数据访问
+5. 然后看 **Service层** 理解业务逻辑
+6. 最后看 **Controller层** 理解接口定义
 
-### 调试技巧：
-1. 在 Controller 打断点，观察请求参数
-2. 在 Service 打断点，观察业务逻辑执行
-3. 查看 Mapper XML，理解SQL执行
-4. 使用 Knife4j 测试接口
+### 学习路径建议：
+1. **第一阶段**：理解项目结构和技术栈
+   - 熟悉 Maven 多模块架构
+   - 理解三层架构（Controller-Service-Mapper）
+   - 学习 Spring Boot 基础配置
+
+2. **第二阶段**：掌握核心功能
+   - 学习 JWT 认证流程
+   - 理解 AOP 自动填充机制
+   - 掌握全局异常处理
+
+3. **第三阶段**：实践业务开发
+   - 从简单的 CRUD 开始（如员工管理）
+   - 逐步学习复杂业务（如订单管理）
+   - 学习 Redis 缓存应用
+
+4. **第四阶段**：优化和扩展
+   - 学习性能优化
+   - 学习分页查询
+   - 学习文件上传（OSS）
+
+### 推荐学习资源：
+- **Spring Boot 官方文档**：https://spring.io/projects/spring-boot
+- **MyBatis 官方文档**：https://mybatis.org/mybatis-3/zh/index.html
+- **Knife4j 文档**：https://doc.xiaominfo.com/
+
+---
+
+## 🎓 项目亮点
+
+1. **标准的企业级项目结构**
+   - Maven 多模块管理
+   - 清晰的分层架构
+   - 统一的代码规范
+
+2. **完善的认证授权机制**
+   - JWT 无状态认证
+   - 管理端和用户端分离
+   - 拦截器统一鉴权
+
+3. **优雅的代码设计**
+   - AOP 自动填充公共字段
+   - 全局异常统一处理
+   - ThreadLocal 管理用户上下文
+
+4. **丰富的技术栈应用**
+   - Spring Boot 快速开发
+   - MyBatis 灵活的 ORM
+   - Redis 缓存提升性能
+   - Knife4j 自动化接口文档
+
+5. **良好的开发体验**
+   - Lombok 简化代码
+   - 热部署支持
+   - 接口文档可视化测试
 
 ---
 
@@ -545,15 +1010,35 @@ Swagger 的增强工具，自动生成接口文档，访问 `/doc.html` 即可�
 这是一个标准的 **Spring Boot + MyBatis** 外卖管理系统，采用：
 - ✅ **多模块架构**：分离公共、实体、业务
 - ✅ **RESTful API**：统一返回格式
-- ✅ **JWT认证**：无状态身份验证
+- ✅ **JWT认证**：无状态身份验证，管理端和用户端分离
+- ✅ **AOP切面编程**：自动填充公共字段
 - ✅ **全局异常处理**：统一错误处理
 - ✅ **Lombok简化代码**：减少冗余代码
 - ✅ **MyBatis持久化**：灵活的SQL映射
+- ✅ **Redis缓存**：提升系统性能
 - ✅ **接口文档自动生成**：Knife4j
+- ✅ **事务管理**：声明式事务
 
-适合学习 Spring Boot 项目开发流程和企业级代码规范！
+**适合人群**：
+- Java 后端开发初学者
+- Spring Boot 学习者
+- 准备面试的应届生
+- 需要参考企业级项目结构的开发者
+
+**学习收获**：
+- 掌握 Spring Boot 项目开发流程
+- 理解企业级代码规范
+- 学习常用技术栈的集成使用
+- 了解前后端分离项目的开发模式
 
 ---
 
-**文档生成时间**：2025-12-24  
-**项目版本**：1.0-SNAPSHOT
+## 📞 联系方式
+
+如有问题或建议，欢迎提交 Issue 或 Pull Request。
+
+---
+
+**文档最后更新时间**：2026-01-05  
+**项目版本**：1.0-SNAPSHOT  
+**作者**：314159first
