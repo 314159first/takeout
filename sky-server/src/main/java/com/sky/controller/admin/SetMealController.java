@@ -50,9 +50,12 @@ public class SetMealController {
     }
 
 
-    /*
-    * 批量删除套餐
-    * */
+    /**
+     *
+     * 批量删除套餐
+     * @param ids
+     * @return
+     */
     @DeleteMapping
     public Result delete(@RequestParam List<Long> ids){
         log.info("批量删除：{}",ids);
