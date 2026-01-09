@@ -7,10 +7,10 @@ sky:
     username: root
     password: 123456
   alioss:
-    endpoint: oss-cn-chengdu.aliyuncs.com
-    access-key-id: LTAI5tPPLDXJc8paQFeXHUvd
-    access-key-secret: 6x9ktGxtZfJXDqSkQ9GcpHfE4Eci2H
-    bucket-name: sakurayuki
+    endpoint: ********************
+    access-key-id: ********************
+    access-key-secret: ********************
+    bucket-name: ********************
 
   redis:
     host: localhost
@@ -20,5 +20,5 @@ sky:
 
 
   wechat:
-    appid: wx3fa00966d1f3e396
-    appsecret: 4902ed5111baf8d14e99e18f025b50bd
+    appid: ********************
+    appsecret: ********************
