@@ -123,6 +123,12 @@
                 <artifactId>wechatpay-apache-httpclient</artifactId>
                 <version>0.4.8</version>
             </dependency>
+
+            <!--cache缓存-->
+<!--            <dependency>-->
+<!--                <groupId>org.springframework.boot</groupId>-->
+<!--                <artifactId>spring-boot-starter-cache</artifactId>-->
+<!--            </dependency>-->
         </dependencies>
     </dependencyManagement>
 </project>
