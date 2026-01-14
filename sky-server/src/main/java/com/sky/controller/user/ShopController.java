@@ -27,6 +27,7 @@ public class ShopController {
      @GetMapping("/status")
      public Result<Integer> getStatus() {
         Integer shopStatus = (Integer) redisTemplate.opsForValue().get("SHOP_STATUS");
+
          log.info("查询营业状态:{}", shopStatus== 1 ? "营业中" : "打烊中");
         return Result.success(shopStatus);
     }
