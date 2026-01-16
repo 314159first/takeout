@@ -11,7 +11,7 @@ import com.sky.vo.SetmealVO;
 import java.util.List;
 
 
-public interface SetMealService {
+public interface                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         SetMealService {
      PageResult pageQuery(SetmealPageQueryDTO setmealPageQueryDTO);
 
     void saveWithDish(SetmealDTO setmealDTO);

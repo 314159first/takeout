@@ -10,4 +10,6 @@
                        (#{orderDetail.name},#{orderDetail.image},#{orderDetail.orderId},#{orderDetail.dishId},#{orderDetail.setmealId},#{orderDetail.dishFlavor},#{orderDetail.amount})
             </foreach>
     </insert>
+
+
 </mapper>
